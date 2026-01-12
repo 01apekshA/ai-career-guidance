@@ -1,19 +1,32 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 
-// 🔹 OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+/* ------------------ SAFE INITIALIZERS ------------------ */
 
-// 🔹 Supabase SERVER client (SERVICE ROLE KEY REQUIRED)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getOpenAI() {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is missing");
+  }
 
-export async function POST(req: Request) {
+  return new OpenAI({ apiKey });
+}
+
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("Supabase environment variables are missing");
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey);
+}
+
+/* ------------------ API HANDLER ------------------ */
+
+export async function POST(req: NextRequest) {
   try {
     const { education, skills, interest } = await req.json();
 
@@ -24,7 +37,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // 🔹 AI PROMPT
+    const openai = getOpenAI();
+    const supabase = getSupabase();
+
+    /* -------- AI PROMPT -------- */
     const prompt = `
 You are an AI career guidance expert.
 
@@ -39,7 +55,7 @@ Provide:
 4. Learning roadmap
 `;
 
-    // 🔹 OPENAI CALL
+    /* -------- OPENAI CALL -------- */
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
@@ -48,7 +64,7 @@ Provide:
     const ai_response =
       completion.choices[0]?.message?.content ?? "No response generated";
 
-    // 🔹 INSERT INTO SUPABASE
+    /* -------- SAVE TO SUPABASE -------- */
     const { error } = await supabase.from("user_requests").insert({
       education,
       skills,
@@ -64,12 +80,14 @@ Provide:
       );
     }
 
-    // 🔹 RETURN TO FRONTEND
     return NextResponse.json({ ai_response });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("API ERROR:", error);
     return NextResponse.json(
-      { error: error.message || "Internal Server Error" },
+      {
+        error:
+          error instanceof Error ? error.message : "Internal Server Error",
+      },
       { status: 500 }
     );
   }

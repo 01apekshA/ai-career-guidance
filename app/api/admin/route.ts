@@ -1,48 +1,46 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function getSupabase() {
+function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error("Supabase environment variables are missing");
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error("supabaseKey is required.");
   }
 
-  return createClient(supabaseUrl, supabaseKey);
+  return createClient(supabaseUrl, serviceKey);
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = req.headers.get("authorization");
-    if (!auth) {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const token = auth.replace("Bearer ", "");
-    const supabase = getSupabase();
+    const token = authHeader.replace("Bearer ", "");
+    const supabase = getSupabaseClient();
 
-    const { data: userData, error: authError } =
-      await supabase.auth.getUser(token);
-
-    if (authError || !userData?.user) {
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data?.user) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", userData.user.id)
+      .eq("id", data.user.id)
       .single();
 
-    if (profileError || profile?.role !== "admin") {
+    if (profile?.role !== "admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (err) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Server error" },
+      { error: err instanceof Error ? err.message : "Server error" },
       { status: 500 }
     );
   }

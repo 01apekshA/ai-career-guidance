@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { getBrowserSupabase } from "@/lib/supabase";
+
+const supabase = getBrowserSupabase();
+
 
 export default function LoginPage() {
   const router = useRouter();
