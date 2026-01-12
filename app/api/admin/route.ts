@@ -4,68 +4,46 @@ import { NextResponse } from "next/server";
 export async function GET(req: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    // Prevent build-time crash
-    if (!supabaseUrl || !supabaseKey) {
+    if (!supabaseUrl || !serviceRoleKey) {
       return NextResponse.json(
-        { error: "Supabase environment variables missing" },
+        { error: "Server misconfiguration" },
         { status: 500 }
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     const auth = req.headers.get("authorization");
     if (!auth) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const token = auth.replace("Bearer ", "");
 
-    const { data: userData, error: authError } =
+    const { data: userData, error: userError } =
       await supabase.auth.getUser(token);
 
-    if (authError || !userData?.user) {
-      return NextResponse.json(
-        { error: "Invalid token" },
-        { status: 401 }
-      );
+    if (userError || !userData?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const userId = userData.user.id;
 
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", userId)
+      .eq("id", userData.user.id)
       .single();
 
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: "Profile not found" },
-        { status: 404 }
-      );
-    }
-
-    if (profile.role !== "admin") {
-      return NextResponse.json(
-        { error: "Forbidden" },
-        { status: 403 }
-      );
+    if (profileError || profile?.role !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const message =
-      error instanceof Error ? error.message : "Unknown server error";
+      error instanceof Error ? error.message : "Internal server error";
 
-    return NextResponse.json(
-      { error: "Server error", details: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
