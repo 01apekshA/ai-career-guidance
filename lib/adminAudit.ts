@@ -1,19 +1,18 @@
-import { supabase } from "./supabaseClient";
+import { getSupabaseClient } from "./supabaseClient";
 
 export async function logAdminAction(
   action: string,
-  targetId?: string,
-  metadata?: any
+  userId: string
 ) {
-  const { data } = await supabase.auth.getSession();
-  const adminId = data.session?.user.id;
+  const supabase = getSupabaseClient();
 
-  if (!adminId) return;
-
-  await supabase.from("admin_audit_logs").insert({
-    admin_id: adminId,
+  const { error } = await supabase.from("admin_audit").insert({
     action,
-    target_id: targetId,
-    metadata,
+    user_id: userId,
+    created_at: new Date().toISOString(),
   });
+
+  if (error) {
+    console.error("Admin audit log failed:", error);
+  }
 }
