@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-export async function GET(req) {
+export async function GET(req: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -9,7 +9,7 @@ export async function GET(req) {
     // Prevent build-time crash
     if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json(
-        { error: "Supabase env vars missing" },
+        { error: "Supabase environment variables missing" },
         { status: 500 }
       );
     }
@@ -59,9 +59,12 @@ export async function GET(req) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : "Unknown server error";
+
     return NextResponse.json(
-      { error: "Server error", details: error.message },
+      { error: "Server error", details: message },
       { status: 500 }
     );
   }
