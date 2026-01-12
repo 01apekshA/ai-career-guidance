@@ -1,32 +1,32 @@
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
 
-export async function GET(req: Request) {
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase environment variables are missing");
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
+}
+
+export async function GET(req: NextRequest) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json(
-        { error: "Server misconfiguration" },
-        { status: 500 }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
-
     const auth = req.headers.get("authorization");
     if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const token = auth.replace("Bearer ", "");
+    const supabase = getSupabase();
 
-    const { data: userData, error: userError } =
+    const { data: userData, error: authError } =
       await supabase.auth.getUser(token);
 
-    if (userError || !userData?.user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (authError || !userData?.user) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
     const { data: profile, error: profileError } = await supabase
@@ -40,10 +40,10 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : "Internal server error";
-
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Server error" },
+      { status: 500 }
+    );
   }
 }
